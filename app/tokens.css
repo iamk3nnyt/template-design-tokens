@@ -1,0 +1,96 @@
+/* GENERATED from design-tokens.json by scripts/tokens.mjs. Do not edit. */
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand: #4f46e5; /* brand/primary */
+  --color-brand-hover: #4338ca; /* brand/primary-hover */
+  --color-brand-subtle: #eef2ff; /* brand/subtle */
+  --color-heading: #0f172a; /* text/heading */
+  --color-ink: #475569; /* text/body */
+  --color-ink-muted: #64748b; /* text/muted */
+  --color-ink-inverse: #ffffff; /* text/inverse */
+  --color-line: #e2e8f0; /* border/default */
+  --color-line-input: #cbd5e1; /* border/input */
+  --color-surface: #ffffff; /* bg/default */
+  --color-surface-muted: #f8fafc; /* bg/subtle */
+  --color-surface-hover: #f1f5f9; /* bg/hover */
+  --color-overlay: rgb(15 23 42 / 0.4); /* bg/overlay */
+  --color-success: #166534; /* status/success/fg */
+  --color-success-surface: #dcfce7; /* status/success/bg */
+  --color-danger: #b91c1c; /* status/danger/fg */
+  --color-danger-surface: #fee2e2; /* status/danger/bg */
+
+  --radius-control: 0.625rem;
+  --radius-card: 1rem;
+  --radius-pill: 9999px;
+
+  --shadow-sm: 0px 1px 2px 0px rgb(0 0 0 / 0.05); /* Shadow/sm */
+  --shadow-lg: 0px 10px 15px -3px rgb(0 0 0 / 0.1), 0px 4px 6px -4px rgb(0 0 0 / 0.1); /* Shadow/lg */
+}
+
+/* Type/Display */
+@utility type-display {
+  font-size: 2.5rem;
+  line-height: 2.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  overflow-wrap: break-word;
+  @media (width < 48rem) {
+    hyphens: auto;
+  }
+  @media (width >= 48rem) {
+    font-size: 3.5rem;
+    line-height: 3.75rem;
+  }
+}
+
+/* Type/H2 */
+@utility type-h2 {
+  font-size: 1.75rem;
+  line-height: 2.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  @media (width >= 48rem) {
+    font-size: 2.25rem;
+    line-height: 2.625rem;
+  }
+}
+
+/* Type/Body */
+@utility type-body {
+  font-size: 1rem;
+  line-height: 1.625rem;
+  font-weight: 400;
+}
+
+/* Type/UI */
+@utility type-ui {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+/* Type/Button */
+@utility type-button {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+}
+
+/* Type/Eyebrow */
+@utility type-eyebrow {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Type/Stat */
+@utility type-stat {
+  font-size: 2rem;
+  line-height: 2.25rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

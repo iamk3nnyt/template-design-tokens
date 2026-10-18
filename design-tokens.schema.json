@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "design-tokens.json",
+  "type": "object",
+  "required": ["$config", "primitives", "color"],
+  "properties": {
+    "$config": {
+      "type": "object",
+      "required": ["css", "scan", "figma"],
+      "properties": {
+        "css": { "type": "string", "description": "Generated CSS path (Tailwind v4 @theme + @utility type-*)" },
+        "ts": { "type": "string", "description": "Generated TS path with literal colour values (optional)" },
+        "scan": { "type": "array", "items": { "type": "string" }, "description": "Dirs the check lint scans" },
+        "allowHex": { "type": "array", "items": { "type": "string" }, "description": "Files allowed to contain hex colours (e.g. flag artwork)" },
+        "figma": {
+          "type": "object",
+          "required": ["primitives", "color", "radius", "shadowPrefix", "typePrefix"],
+          "properties": {
+            "primitives": { "type": "string" }, "color": { "type": "string" }, "radius": { "type": "string" },
+            "shadowPrefix": { "type": "string" }, "typePrefix": { "type": "string" }
+          }
+        }
+      }
+    },
+    "font": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "required": ["family", "stack"],
+        "properties": { "family": { "type": "string", "description": "Figma font family" }, "stack": { "type": "string", "description": "CSS font-family value" } }
+      }
+    },
+    "primitives": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } },
+    "color": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "required": ["figma", "value"],
+        "properties": {
+          "figma": { "type": "string", "description": "Variable name in the Figma Color collection, e.g. text/body" },
+          "value": { "type": "string", "description": "Primitive name" },
+          "alpha": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "radius": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0 }, "description": "px; 9999 = pill" },
+    "shadow": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "required": ["figma", "layers"],
+        "properties": {
+          "figma": { "type": "string" },
+          "layers": { "type": "array", "items": { "type": "object", "required": ["x", "y", "blur", "spread", "color"],
+            "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "blur": { "type": "number" }, "spread": { "type": "number" },
+              "color": { "type": "string", "description": "Primitive name or #rrggbb" }, "alpha": { "type": "number" } } } }
+        }
+      }
+    },
+    "type": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "required": ["figma", "size", "line", "weight"],
+        "properties": {
+          "figma": { "type": "string" }, "font": { "type": "string", "description": "Key in font (default sans)" },
+          "size": { "type": "number" }, "line": { "type": "number" }, "weight": { "type": "number" },
+          "tracking": { "type": "number", "description": "em" }, "uppercase": { "type": "boolean" }, "tabular": { "type": "boolean" },
+          "hyphenate": { "type": "boolean", "description": "Hyphenate long words on phones only" },
+          "md": { "type": "object", "properties": { "size": { "type": "number" }, "line": { "type": "number" } }, "description": "Overrides from 768px" },
+          "css": { "type": "array", "items": { "type": "string" }, "description": "Extra declarations appended to the utility" }
+        }
+      }
+    }
+  }
+}

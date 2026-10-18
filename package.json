@@ -1,0 +1,12 @@
+{
+  "name": "template-design-tokens",
+  "private": true,
+  "type": "module",
+  "description": "Drop-in design-token pipeline: design-tokens.json → Tailwind v4 @theme CSS + TS, a lint gate, and a Figma variables/styles sync.",
+  "scripts": {
+    "tokens": "node scripts/tokens.mjs build",
+    "tokens:check": "node scripts/tokens.mjs check",
+    "tokens:figma": "node scripts/tokens.mjs figma"
+  },
+  "engines": { "node": ">=20.11" }
+}

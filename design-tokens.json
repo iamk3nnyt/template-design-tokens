@@ -1,0 +1,84 @@
+{
+  "$schema": "./design-tokens.schema.json",
+  "$description": "Single source of truth for the design system. `node scripts/tokens.mjs build` generates the CSS and TS outputs; the Figma file mirrors this file one-to-one (see docs/figma.md). Change a value here, rebuild, then sync Figma.",
+  "$config": {
+    "css": "app/tokens.css",
+    "ts": "lib/tokens.ts",
+    "scan": ["app", "components"],
+    "allowHex": [],
+    "figma": {
+      "primitives": "Primitives",
+      "color": "Color",
+      "radius": "Radius",
+      "shadowPrefix": "Shadow/",
+      "typePrefix": "Type/"
+    }
+  },
+  "font": {
+    "sans": { "family": "Inter", "stack": "\"Inter\", ui-sans-serif, system-ui, sans-serif" }
+  },
+  "primitives": {
+    "brand/50": "#eef2ff",
+    "brand/100": "#e0e7ff",
+    "brand/600": "#4f46e5",
+    "brand/700": "#4338ca",
+    "brand/900": "#312e81",
+    "white": "#ffffff",
+    "black": "#000000",
+    "gray/50": "#f8fafc",
+    "gray/100": "#f1f5f9",
+    "gray/200": "#e2e8f0",
+    "gray/300": "#cbd5e1",
+    "gray/400": "#94a3b8",
+    "gray/500": "#64748b",
+    "gray/600": "#475569",
+    "gray/900": "#0f172a",
+    "green/100": "#dcfce7",
+    "green/800": "#166534",
+    "red/100": "#fee2e2",
+    "red/700": "#b91c1c"
+  },
+  "color": {
+    "brand": { "figma": "brand/primary", "value": "brand/600" },
+    "brand-hover": { "figma": "brand/primary-hover", "value": "brand/700" },
+    "brand-subtle": { "figma": "brand/subtle", "value": "brand/50" },
+    "heading": { "figma": "text/heading", "value": "gray/900" },
+    "ink": { "figma": "text/body", "value": "gray/600" },
+    "ink-muted": { "figma": "text/muted", "value": "gray/500" },
+    "ink-inverse": { "figma": "text/inverse", "value": "white" },
+    "line": { "figma": "border/default", "value": "gray/200" },
+    "line-input": { "figma": "border/input", "value": "gray/300" },
+    "surface": { "figma": "bg/default", "value": "white" },
+    "surface-muted": { "figma": "bg/subtle", "value": "gray/50" },
+    "surface-hover": { "figma": "bg/hover", "value": "gray/100" },
+    "overlay": { "figma": "bg/overlay", "value": "gray/900", "alpha": 0.4 },
+    "success": { "figma": "status/success/fg", "value": "green/800" },
+    "success-surface": { "figma": "status/success/bg", "value": "green/100" },
+    "danger": { "figma": "status/danger/fg", "value": "red/700" },
+    "danger-surface": { "figma": "status/danger/bg", "value": "red/100" }
+  },
+  "radius": {
+    "control": 10,
+    "card": 16,
+    "pill": 9999
+  },
+  "shadow": {
+    "sm": { "figma": "sm", "layers": [{ "x": 0, "y": 1, "blur": 2, "spread": 0, "color": "black", "alpha": 0.05 }] },
+    "lg": {
+      "figma": "lg",
+      "layers": [
+        { "x": 0, "y": 10, "blur": 15, "spread": -3, "color": "black", "alpha": 0.1 },
+        { "x": 0, "y": 4, "blur": 6, "spread": -4, "color": "black", "alpha": 0.1 }
+      ]
+    }
+  },
+  "type": {
+    "display": { "figma": "Display", "size": 40, "line": 46, "weight": 600, "tracking": -0.02, "md": { "size": 56, "line": 60 }, "hyphenate": true },
+    "h2": { "figma": "H2", "size": 28, "line": 34, "weight": 600, "tracking": -0.01, "md": { "size": 36, "line": 42 } },
+    "body": { "figma": "Body", "size": 16, "line": 26, "weight": 400 },
+    "ui": { "figma": "UI", "size": 14, "line": 20, "weight": 500 },
+    "button": { "figma": "Button", "size": 14, "line": 20, "weight": 600 },
+    "eyebrow": { "figma": "Eyebrow", "size": 12, "line": 16, "weight": 600, "tracking": 0.08, "uppercase": true },
+    "stat": { "figma": "Stat", "size": 32, "line": 36, "weight": 600, "tabular": true }
+  }
+}
