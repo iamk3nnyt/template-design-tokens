@@ -30,7 +30,7 @@ Also list Figma variables that **aren't** in the tokens with a short read-only s
 
 ## 3. Decide direction
 - **to-figma:** the tokens win. Show the change list in one line per group and apply.
-- **from-figma:** a designer changed values in Figma. Read the differing variables, update `design-tokens.json` (primitives first, then the semantic `value`), rebuild, run `check`, and show the git diff.
+- **from-figma:** a designer changed values in Figma. Run `node scripts/tokens.mjs figma-export-script` with `use_figma` (read-only), save the returned JSON to `/tmp/figma-state.json`, then run `node scripts/tokens.mjs pull /tmp/figma-state.json`. Review the edits, re-run with `--write`, then `build` + `check`, and show the git diff. A second pull must report "already matches".
 - **Mixed:** ask which side wins for each conflicting token. Never delete Figma variables or styles unasked; just report extras.
 
 ## 4. Apply

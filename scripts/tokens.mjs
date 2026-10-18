@@ -6,6 +6,11 @@
 //   node scripts/tokens.mjs figma-script [--apply]
 //                                          print a Figma Plugin API script for the Figma MCP `use_figma`
 //                                          tool: dry run by default (returns the diff), --apply writes
+//   node scripts/tokens.mjs figma-export-script
+//                                          print a read-only Plugin API script that returns the Figma side as JSON
+//   node scripts/tokens.mjs pull <figma-state.json> [--write]
+//                                          diff that JSON against design-tokens.json; --write updates the file
+//   node scripts/tokens.mjs map            Figma variable/style name → CSS var / Tailwind utility (for implementing designs)
 import fs from "node:fs";
 import path from "node:path";
 
@@ -253,6 +258,167 @@ for (const s of SPEC.textStyles) {
 return { applied: APPLY, changes, ids };
 `;
 
+// Read-only: returns the Figma side in a shape `pull` understands.
+const EXPORT_BODY = String.raw`
+const hex = (c) => "#" + [c.r, c.g, c.b].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("");
+const round = (n) => Math.round(n * 1000) / 1000;
+const out = { collections: {}, effectStyles: {}, textStyles: {} };
+const cols = await figma.variables.getLocalVariableCollectionsAsync();
+const vars = await figma.variables.getLocalVariablesAsync();
+const byId = new Map(vars.map((v) => [v.id, v]));
+for (const c of cols) {
+  const bucket = (out.collections[c.name] = {});
+  for (const v of vars.filter((x) => x.variableCollectionId === c.id)) {
+    const val = v.valuesByMode[c.defaultModeId];
+    if (val && val.type === "VARIABLE_ALIAS") {
+      const target = byId.get(val.id) || (await figma.variables.getVariableByIdAsync(val.id));
+      bucket[v.name] = { type: v.resolvedType, alias: target ? target.name : null };
+    } else if (v.resolvedType === "COLOR") bucket[v.name] = { type: "COLOR", value: hex(val), alpha: round(val.a ?? 1) };
+    else bucket[v.name] = { type: v.resolvedType, value: val };
+  }
+}
+for (const s of await figma.getLocalEffectStylesAsync()) {
+  out.effectStyles[s.name] = s.effects.filter((e) => e.type === "DROP_SHADOW").map((e) => ({ x: e.offset.x, y: e.offset.y, blur: e.radius, spread: e.spread ?? 0, color: hex(e.color), alpha: round(e.color.a) }));
+}
+for (const s of await figma.getLocalTextStylesAsync()) {
+  out.textStyles[s.name] = { family: s.fontName.family, style: s.fontName.style, size: s.fontSize,
+    line: s.lineHeight.unit === "PIXELS" ? s.lineHeight.value : null,
+    tracking: s.letterSpacing.unit === "PERCENT" ? round(s.letterSpacing.value / 100) : round(s.letterSpacing.value / s.fontSize),
+    uppercase: s.textCase === "UPPER" };
+}
+return out;
+`;
+
+const STYLE_WEIGHTS = { thin: 100, extralight: 200, light: 300, regular: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800, black: 900 };
+const kebab = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const sameNum = (a, b) => Math.abs((a ?? 0) - (b ?? 0)) < 0.0015;
+
+// Figma state (from figma-export-script) → edits to design-tokens.json. Never deletes: code-only tokens are reported.
+function pull(state) {
+  const f = config.figma;
+  const next = structuredClone(tokens);
+  const edits = [];
+  const notes = [];
+  const primByHex = () => new Map(entries(next.primitives).map(([k, v]) => [v.toLowerCase(), k]));
+  const primitiveFor = (hexValue, suggested) => {
+    const found = primByHex().get(hexValue.toLowerCase());
+    if (found) return found;
+    let name = suggested;
+    for (let i = 2; next.primitives[name]; i++) name = `${suggested}-${i}`;
+    next.primitives[name] = hexValue.toLowerCase();
+    edits.push(`+ primitive ${name} = ${hexValue}`);
+    return name;
+  };
+
+  const prims = state.collections[f.primitives] ?? {};
+  for (const [name, v] of Object.entries(prims)) {
+    if (v.type !== "COLOR" || !v.value) continue;
+    if (!next.primitives[name]) { next.primitives[name] = v.value; edits.push(`+ primitive ${name} = ${v.value}`); }
+    else if (next.primitives[name].toLowerCase() !== v.value.toLowerCase()) { edits.push(`~ primitive ${name}: ${next.primitives[name]} → ${v.value}`); next.primitives[name] = v.value; }
+  }
+  for (const k of Object.keys(next.primitives)) if (!(k in prims)) notes.push(`primitive ${k} only in code`);
+
+  const colors = state.collections[f.color] ?? {};
+  const keyByFigma = new Map(entries(next.color).map(([k, t]) => [t.figma, k]));
+  for (const [fname, v] of Object.entries(colors)) {
+    let key = keyByFigma.get(fname);
+    const value = v.alias ?? primitiveFor(v.value, fname);
+    const alpha = v.alias || v.alpha === undefined || sameNum(v.alpha, 1) ? undefined : v.alpha;
+    if (!key) {
+      key = kebab(fname);
+      next.color[key] = { figma: fname, value, ...(alpha !== undefined ? { alpha } : {}) };
+      edits.push(`+ color ${key} (${fname}) = ${value}${alpha !== undefined ? ` @${alpha}` : ""}  ← rename the key if --color-${key} isn't the CSS name you want`);
+      continue;
+    }
+    const t = next.color[key];
+    if (t.value !== value) { edits.push(`~ color ${key}: ${t.value} → ${value}`); t.value = value; }
+    if (!sameNum(t.alpha ?? 1, alpha ?? 1)) { edits.push(`~ color ${key} alpha: ${t.alpha ?? 1} → ${alpha ?? 1}`); if (alpha === undefined) delete t.alpha; else t.alpha = alpha; }
+  }
+  for (const [k, t] of entries(next.color)) if (!(t.figma in colors)) notes.push(`color ${k} (${t.figma}) only in code`);
+
+  const radii = state.collections[f.radius] ?? {};
+  next.radius ??= {};
+  for (const [fname, v] of Object.entries(radii)) {
+    const key = fname.replace(/^radius\//, "");
+    if (typeof v.value !== "number") continue;
+    if (next.radius[key] === undefined) { next.radius[key] = v.value; edits.push(`+ radius ${key} = ${v.value}`); }
+    else if (next.radius[key] !== v.value) { edits.push(`~ radius ${key}: ${next.radius[key]} → ${v.value}`); next.radius[key] = v.value; }
+  }
+
+  next.shadow ??= {};
+  const shadowKey = new Map(entries(next.shadow).map(([k, t]) => [t.figma, k]));
+  for (const [name, layers] of Object.entries(state.effectStyles ?? {})) {
+    if (!name.startsWith(f.shadowPrefix) || !layers.length) continue;
+    const fname = name.slice(f.shadowPrefix.length);
+    const key = shadowKey.get(fname) ?? kebab(fname);
+    const want = layers.map((l) => ({ x: l.x, y: l.y, blur: l.blur, spread: l.spread, color: primitiveFor(l.color, kebab(l.color)), alpha: l.alpha }));
+    const cur = next.shadow[key];
+    const sig = (ls) => JSON.stringify(ls.map((l) => [l.x, l.y, l.blur, l.spread, resolveHexIn(next, l.color), +(l.alpha ?? 1).toFixed(3)]));
+    if (!cur) { next.shadow[key] = { figma: fname, layers: want }; edits.push(`+ shadow ${key}`); }
+    else if (sig(cur.layers) !== sig(want)) { cur.layers = want; edits.push(`~ shadow ${key} layers`); }
+  }
+
+  next.type ??= {};
+  const typeKey = new Map(entries(next.type).map(([k, t]) => [t.figma, k]));
+  for (const [name, s] of Object.entries(state.textStyles ?? {})) {
+    if (!name.startsWith(f.typePrefix)) continue;
+    const desktop = name.endsWith(" Desktop");
+    const fname = name.slice(f.typePrefix.length).replace(/ Desktop$/, "");
+    const weight = STYLE_WEIGHTS[s.style.toLowerCase().replace(/[\s-]/g, "")];
+    if (s.line === null) notes.push(`text style ${name}: line height isn't in px, skipped`);
+    let key = typeKey.get(fname);
+    if (!key) {
+      if (desktop) continue; // handled with its mobile style
+      key = kebab(fname);
+      next.type[key] = { figma: fname, size: s.size, line: s.line, weight: weight ?? 400, ...(s.tracking ? { tracking: s.tracking } : {}), ...(s.uppercase ? { uppercase: true } : {}) };
+      typeKey.set(fname, key);
+      edits.push(`+ type ${key} (${name})`);
+      continue;
+    }
+    const t = next.type[key];
+    const fam = (tokens.font?.[t.font ?? "sans"] ?? Object.values(tokens.font ?? {})[0])?.family;
+    if (fam && s.family !== fam) notes.push(`text style ${name}: font ${s.family} ≠ code ${fam}, change font.*.family by hand`);
+    if (desktop) {
+      if (!t.md || t.md.size !== s.size || t.md.line !== s.line) { edits.push(`~ type ${key} md: ${t.md ? `${t.md.size}/${t.md.line}` : "none"} → ${s.size}/${s.line}`); t.md = { size: s.size, line: s.line }; }
+      continue;
+    }
+    for (const [field, val] of [["size", s.size], ["line", s.line], ["weight", weight]]) {
+      if (val != null && t[field] !== val) { edits.push(`~ type ${key} ${field}: ${t[field]} → ${val}`); t[field] = val; }
+    }
+    if (!sameNum(t.tracking, s.tracking)) { edits.push(`~ type ${key} tracking: ${t.tracking ?? 0} → ${s.tracking}`); if (s.tracking) t.tracking = s.tracking; else delete t.tracking; }
+    if (!!t.uppercase !== s.uppercase) { edits.push(`~ type ${key} uppercase → ${s.uppercase}`); if (s.uppercase) t.uppercase = true; else delete t.uppercase; }
+  }
+  return { next, edits, notes };
+}
+const resolveHexIn = (doc, ref) => (ref?.startsWith("#") ? ref.toLowerCase() : doc.primitives[ref]?.toLowerCase());
+
+// JSON with leaf objects on one line, matching the hand-written style of design-tokens.json.
+function formatTokens(value, indent = "") {
+  const isLeaf = (v) => v && typeof v === "object" && Object.values(v).every((x) => x === null || typeof x !== "object" || (Array.isArray(x) && x.every((y) => typeof y !== "object")));
+  if (Array.isArray(value)) {
+    if (value.every((x) => typeof x !== "object")) return JSON.stringify(value).replace(/,/g, ", ");
+    return `[\n${value.map((v) => `${indent}  ${formatTokens(v, `${indent}  `)}`).join(",\n")}\n${indent}]`;
+  }
+  if (value && typeof value === "object") {
+    if (isLeaf(value) && indent.length >= 4) return `{ ${Object.entries(value).map(([k, v]) => `${JSON.stringify(k)}: ${Array.isArray(v) ? formatTokens(v) : JSON.stringify(v)}`).join(", ")} }`;
+    const fmt = (k, v) => (k === "$config" ? JSON.stringify(v, null, 2).replace(/\n/g, `\n${indent}  `).replace(/\[\n\s*([^\]{]*?)\n\s*\]/g, (_, items) => `[${items.split(/,\n\s*/).join(", ")}]`) : formatTokens(v, `${indent}  `));
+    return `{\n${Object.entries(value).map(([k, v]) => `${indent}  ${JSON.stringify(k)}: ${fmt(k, v)}`).join(",\n")}\n${indent}}`;
+  }
+  return JSON.stringify(value);
+}
+
+// Figma name → the code to write (for implementing designs). Hex → token for unbound values.
+function tokenMap() {
+  const f = config.figma;
+  const color = Object.fromEntries(entries(tokens.color).map(([k, t]) => [t.figma, { css: `var(--color-${k})`, tailwind: [`text-${k}`, `bg-${k}`, `border-${k}`] }]));
+  const radius = Object.fromEntries(entries(tokens.radius).map(([k]) => [`radius/${k}`, { css: `var(--radius-${k})`, tailwind: [`rounded-${k}`] }]));
+  const shadow = Object.fromEntries(entries(tokens.shadow).map(([k, t]) => [`${f.shadowPrefix}${t.figma}`, { tailwind: [`shadow-${k}`] }]));
+  const type = Object.fromEntries(entries(tokens.type).flatMap(([k, t]) => [[`${f.typePrefix}${t.figma}`, { tailwind: [`type-${k}`] }], ...(t.md ? [[`${f.typePrefix}${t.figma} Desktop`, { tailwind: [`type-${k}`], note: "same utility; the md size applies from 768px" }]] : [])]));
+  const byHex = {};
+  for (const [k, t] of entries(tokens.color)) (byHex[colorValue(t).toLowerCase()] ??= []).push(k);
+  return { color, radius, shadow, type, hexToColorTokens: byHex };
+}
+
 function figmaScript(apply) {
   return `// Generated by scripts/tokens.mjs figma-script from design-tokens.json. Run with the Figma MCP use_figma tool.\nconst APPLY = ${apply};\nconst SPEC = ${JSON.stringify(figmaSpec())};\n${PLUGIN_BODY}`;
 }
@@ -283,9 +449,24 @@ if (cmd === "build") {
   console.log("tokens check ok");
 } else if (cmd === "figma") {
   console.log(JSON.stringify(figmaSpec(), null, 2));
+} else if (cmd === "figma-export-script") {
+  process.stdout.write(`// Generated by scripts/tokens.mjs figma-export-script. Read-only; run with use_figma and save the returned JSON.\n${EXPORT_BODY}`);
+} else if (cmd === "pull") {
+  const file = rest.find((a) => !a.startsWith("--"));
+  if (!file) { console.error("usage: tokens.mjs pull <figma-state.json> [--write]"); process.exit(2); }
+  const { next, edits, notes } = pull(JSON.parse(fs.readFileSync(file, "utf8")));
+  for (const e of edits) console.log(e);
+  for (const n of notes) console.log(`note: ${n}`);
+  if (!edits.length) console.log("design-tokens.json already matches Figma");
+  else if (rest.includes("--write")) {
+    fs.writeFileSync(SOURCE, `${formatTokens(next)}\n`);
+    console.log(`\nwrote design-tokens.json (${edits.length} edits); now run: node scripts/tokens.mjs build && node scripts/tokens.mjs check`);
+  } else console.log(`\n${edits.length} edits (dry run; add --write to apply)`);
+} else if (cmd === "map") {
+  console.log(JSON.stringify(tokenMap(), null, 2));
 } else if (cmd === "figma-script") {
   process.stdout.write(figmaScript(rest.includes("--apply")));
 } else {
-  console.error("usage: tokens.mjs build | check | figma | figma-script [--apply]");
+  console.error("usage: tokens.mjs build | check | map | figma | figma-script [--apply] | figma-export-script | pull <figma-state.json> [--write]");
   process.exit(2);
 }

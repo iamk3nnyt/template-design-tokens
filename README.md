@@ -6,9 +6,14 @@ A drop-in design-system foundation for Next.js + Tailwind v4 projects that keep 
 - **`scripts/tokens.mjs`** has no dependencies:
   - `build` → `@theme` CSS + `type-*` utilities + a TS colour map;
   - `check` → validation, a stale-output check, and a lint gate that rejects hex, palette colours, `rounded-lg`, `text-sm`, `font-bold` and similar in components;
-  - `figma-script` → a Figma Plugin API script that diffs (dry run) or upserts (`--apply`) variables, effect styles and text styles, with WEB code syntax = the CSS variable.
+  - `figma-script` → a Figma Plugin API script that diffs (dry run) or upserts (`--apply`) variables, effect styles and text styles, with WEB code syntax = the CSS variable (code → Figma);
+  - `figma-export-script` + `pull` → reads the Figma side and writes designer changes back into `design-tokens.json` (Figma → code; never deletes);
+  - `map` → Figma variable/style name → Tailwind utility, used when implementing designs.
 - **`figma-capture/`** re-captures running screens into Figma at desktop width and in a 390px mobile wrapper.
-- **`.claude/skills/`** contains `figma-sync` and `figma-capture`, which Claude Code drives through the Figma MCP.
+- **`.claude/skills/`** contains three skills that Claude Code drives through the Figma MCP:
+  - `figma-sync`: tokens both ways;
+  - `figma-capture`: screens, code → Figma;
+  - `figma-implement`: frames → code, using only token utilities.
 - **`docs/figma.md`** is a mapping doc to fill in: token ↔ Figma ↔ Tailwind, and component ↔ file.
 
 ## Adopt in a project
