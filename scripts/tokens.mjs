@@ -193,7 +193,9 @@ for (const spec of SPEC.collections) {
   for (const t of spec.variables) {
     let v = findVar(col, t.name);
     const label = spec.name + " / " + t.name;
-    if (!v) { changes.push("+ " + label); if (!APPLY) continue; v = figma.variables.createVariable(t.name, col, t.type); ids.created.push(v.id); allVars.push(v); }
+    const isNew = !v;
+    if (isNew) { changes.push("+ " + label); if (!APPLY) continue; v = figma.variables.createVariable(t.name, col, t.type); ids.created.push(v.id); allVars.push(v); }
+    const log = (msg) => { if (!isNew) changes.push(msg); };
     const mode = col.defaultModeId;
     const cur = v.valuesByMode[mode];
     let want;
@@ -204,12 +206,12 @@ for (const spec of SPEC.collections) {
     if (!want) want = t.type === "COLOR" ? { ...rgb(t.value), a: t.alpha ?? 1 } : t.value;
     const differs = want.type === "VARIABLE_ALIAS" ? !(cur && cur.type === "VARIABLE_ALIAS" && cur.id === want.id)
       : t.type === "COLOR" ? !sameColor(cur, want) : cur !== want;
-    if (differs) { changes.push("~ " + label + " value"); if (APPLY) { v.setValueForMode(mode, want); ids.updated.push(v.id); } }
+    if (differs) { log("~ " + label + " value"); if (APPLY) { v.setValueForMode(mode, want); if (!isNew) ids.updated.push(v.id); } }
     if (APPLY) {
       v.scopes = t.scopes;
       if (t.hidden !== undefined) v.hiddenFromPublishing = t.hidden;
-      if (t.codeSyntax && v.codeSyntax.WEB !== t.codeSyntax) { v.setVariableCodeSyntax("WEB", t.codeSyntax); changes.push("~ " + label + " codeSyntax"); }
-    } else if (t.codeSyntax && v.codeSyntax.WEB !== t.codeSyntax) changes.push("~ " + label + " codeSyntax");
+      if (t.codeSyntax && v.codeSyntax.WEB !== t.codeSyntax) { v.setVariableCodeSyntax("WEB", t.codeSyntax); log("~ " + label + " codeSyntax"); }
+    } else if (t.codeSyntax && v.codeSyntax.WEB !== t.codeSyntax) log("~ " + label + " codeSyntax");
   }
 }
 
@@ -220,7 +222,7 @@ for (const s of SPEC.effectStyles) {
   const differs = !st || JSON.stringify(st.effects.map((e) => [e.offset.x, e.offset.y, e.radius, e.spread, +e.color.a.toFixed(3)])) !== JSON.stringify(want.map((e) => [e.offset.x, e.offset.y, e.radius, e.spread, +e.color.a.toFixed(3)]));
   if (differs) {
     changes.push((st ? "~ " : "+ ") + "effect style " + s.name);
-    if (APPLY) { if (!st) { st = figma.createEffectStyle(); st.name = s.name; ids.created.push(st.id); } st.effects = want; st.description = s.description; ids.updated.push(st.id); }
+    if (APPLY) { if (!st) { st = figma.createEffectStyle(); st.name = s.name; ids.created.push(st.id); } st.effects = want; st.description = s.description; }
   }
 }
 
@@ -245,7 +247,7 @@ for (const s of SPEC.textStyles) {
   st.letterSpacing = { unit: "PERCENT", value: s.tracking * 100 };
   st.textCase = s.uppercase ? "UPPER" : "ORIGINAL";
   st.description = s.description;
-  ids.updated.push(st.id);
+  if (!ids.created.includes(st.id)) ids.updated.push(st.id);
 }
 
 return { applied: APPLY, changes, ids };
